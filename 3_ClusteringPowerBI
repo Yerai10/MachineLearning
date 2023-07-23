@@ -11,7 +11,7 @@ from sklearn import cluster as sk_cluster
 import pyodbc
 
 try:
-    connection = pyodbc.connect('DRIVER={SQL Server};SERVER=YERAI_CM\SQLEXPRESS;DATABASE=tpcxbb_1gb;UID=sa;PWD=Yerato94')
+    connection = pyodbc.connect('DRIVER={SQL Server};SERVER=YERAI_CM\SQLEXPRESS;DATABASE=tpcxbb_1gb;UID=sa;PWD=******')
     # connection = pyodbc.connect('DRIVER={SQL Server};SERVER=USKOKRUM2010;DATABASE=django_api;Trusted_Connection=yes;')
     print("Conexión exitosa.")
     cursor = connection.cursor()
