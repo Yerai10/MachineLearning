@@ -1,0 +1,60 @@
+import pyodbc
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import nltk
+
+## Conexión con la BBDD
+import pyodbc
+
+try:
+    connection = pyodbc.connect('DRIVER={SQL Server};SERVER=YERAI_CM\SQLEXPRESS;DATABASE=tpcxbb_1gb;UID=sa;PWD=*******')
+    # connection = pyodbc.connect('DRIVER={SQL Server};SERVER=USKOKRUM2010;DATABASE=django_api;Trusted_Connection=yes;')
+    print("Conexión exitosa.")
+    cursor = connection.cursor()
+    cursor.execute("SELECT @@version;")
+    row = cursor.fetchone()
+    print("Versión del servidor de SQL Server: {}".format(row))
+    cursor.execute("SELECT * FROM tarea")
+    rows = cursor.fetchall()
+    for row in rows:
+        print(row)
+except Exception as ex:
+    print("Error durante la conexión: {}".format(ex))
+    
+    input_query = '''SELECT
+T0.pr_review_date as FechaReview,
+T0.pr_item_sk as ProductoID,
+T0.pr_review_rating as Calificacion,
+T0.pr_review_content as Review,
+T0.pr_user_sk as UsuarioCliente,
+T1.i_category as Categoria,
+T1.i_product_name as Producto,
+T1.i_item_desc as Descripcion,
+T1.i_size as Tamaño
+
+FROM product_reviews T0
+JOIN item T1 ON T0.pr_item_sk = T1.i_item_sk '''
+
+################################ Lee el input SQL
+
+review_data = pd.read_sql(input_query,connection)
+###############################♣ Saca a consola el DataFrame en forma de tabla los 5 primeros registros.
+
+print('Data Frame', review_data.head(n=5))
+
+### Conentamos con nltk para analizar sentimientos
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
+# Renombramos nuestra tabla review en "df" y SentimentIntensityAnalizer con analyzer
+df = pd.DataFrame(data = review_data)
+analyzer = SentimentIntensityAnalyzer()
+
+
+#Buscando la polaridad por cada review mediante redondeo con el metodo polarity_score 
+
+polarity = [round(analyzer.polarity_scores(i)['compound'],2) for i in df['Review']]
+df['sentiment_score'] = polarity
+
+print(df)
+
