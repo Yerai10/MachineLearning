@@ -1,0 +1,100 @@
+
+import pyodbc
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import warnings
+warnings.filterwarnings('ignore')
+
+from pmdarima.arima import auto_arima
+
+#Creamos la conexion
+connection = pyodbc.connect('DRIVER={SQL Server};SERVER=YERAI_CM\SQLEXPRESS;DATABASE=tpcxbb_1gb;UID=sa;PWD=*****')
+
+#SQL
+input_query = '''SELECT
+CONCAT_WS('-', YEAR(t1.d_date), MONTH(t1.d_date)) AS AnoMes,
+SUM(T0.ss_quantity * T0.ss_list_price) AS Ventas
+FROM store_sales T0
+	join date_dim t1 ON T0.ss_sold_date_sk = t1.d_date_sk
+	WHERE CONCAT_WS('-', YEAR(t1.d_date), MONTH(t1.d_date))<> '2005-12'
+GROUP BY YEAR(t1.d_date),MONTH(t1.d_date)
+ORDER BY YEAR(t1.d_date),MONTH(t1.d_date)'''
+
+
+##########################
+
+sales_data = pd.read_sql(input_query, connection)
+
+#Para visualizar los 5 primeros registros
+sales_data.head()
+
+#Tipos de datos de la tabla
+sales_data.dtypes
+
+#Convertir AnoMes (objeto) en datatime
+
+sales_data['AnoMes'] = pd.to_datetime(sales_data['AnoMes'])
+sales_data.dtypes
+
+# Indexar convertirlo en una serie de tiempo, si no no se visualizará el plot
+sales_data.set_index('AnoMes', inplace=True)
+#Visualizar grafica
+sales_data.head()
+sales_data.plot()
+
+## Testing 
+
+from pmdarima.arima import ADFTest
+adf_test = ADFTest(alpha= 0.05)
+adf_test.should_diff(sales_data)
+
+# Datos para entrenamiento y test
+
+train = sales_data[:80]
+test = sales_data[-30:]
+
+
+#Visualizar el final de la tabla
+
+train.tail()
+
+#Visulalizar el principio de la tabla
+test.head()
+
+plt.plot(train)
+plt.plot(test)
+
+#Creamos el modelo arima utilizando la funcion auto_arima y le pasamos parametros
+arima_model = auto_arima(train, start_p=0, d=1, start_q=0,
+                         max_p=5, max_d=5, max_q=5, start_P=0,
+                         D=1, start_Q=0, max_P=5, max_D=5,
+                         max_Q=5, m=12, seasonal=True,
+                         error_action='ignore', trace = True, 
+                         supress_warnings = True, stepwise=True, 
+                         random_state=20, n_fits= 50)
+
+# Resumen del modelo 
+arima_model.summary()
+arima_model.aic()
+
+#Predicción ventas
+prediction= pd.DataFrame(arima_model.predict(n_periodos = 50))
+prediction.columns = ['predicted_sales']
+prediction
+
+
+plt.figure(figsize=(8,5))
+plt.plot(train,label="Training")
+plt.plot(test,label = "Test")
+plt.plot(prediction,label="Predicted",)
+plt.legend(loc = "best")
+plt.xticks(rotation = 50)
+plt.show()
+
+
+from sklearn.metrics import r2_score
+test['predicted_sales'] = prediction
+r2_score(test['Ventas'], test['predicted_sales'])
+
+data_final= pd.concat([sales_data,prediction],axis=0)
