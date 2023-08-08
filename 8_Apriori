@@ -1,0 +1,85 @@
+
+import pyodbc
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import warnings
+warnings.filterwarnings('ignore')
+
+from mlxtend.frequent_patterns import apriori, association_rules
+
+
+#Creamos la conexion
+connection = pyodbc.connect('DRIVER={SQL Server};SERVER=YERAI_CM\SQLEXPRESS;DATABASE=AdventureWorks2019;UID=sa;PWD=*******')
+
+#SQL
+input_query = '''SELECT 
+     T0.SalesOrderID AS Factura, 
+	 CONVERT( varchar, T1.OrderDate,105) AS Fecha,
+	 T0.ProductID AS ProductoID,
+	 T2.Name AS Producto,
+	 T0.OrderQty AS Cantidad,
+	 T0.UnitPrice AS Precio
+	
+  FROM [Sales].[SalesOrderDetail] T0
+  JOIN sales.SalesOrderHeader T1 ON T0.SalesOrderID = T1.SalesOrderID
+  JOIN Production.Product T2 ON T0.ProductID = T2.ProductID;
+  '''
+#Creamos el DataFrame
+data= pd.read_sql(input_query, connection)
+
+#Visualizacimos las columnas y de tabla
+data.columns
+
+data.head()
+#Quitamos espacios extra en el nombre del producto.
+
+data['Producto'] = data['Producto'].str.strip()
+
+data.dtypes
+
+#uitamos las filas que no tienen nºde factura
+
+data.dropna(axis=0, subset=['Factura'], inplace= True)
+data['Factura'] = data['Factura'].astype('str')
+
+#Creamos el objeto 
+basket = (data
+
+.groupby(['Factura', 'Producto'])['Cantidad']
+
+.sum().unstack().reset_index().fillna(0)
+
+.set_index('Factura'))
+
+basket.head()
+
+#Estandarizamos los valores de Basket si es menor/igual que 0 lo pone 0 y si es
+# mayor que 1 lo pone 1.
+
+def hot_encode(x):
+    if(x<= 0):
+        return 0
+    if(x>=1):
+        return 1
+    
+# Lo codificamos en la tabla para que se aplique el redondeo de valores anterior def hot_encode
+
+basket_encoded = basket.applymap(hot_encode)
+basket = basket_encoded
+basket.head()
+
+
+# Creando el modelo, el 0.03 es la frecuencia con la nos devolverá el resultado de los 
+# items. Si lo pones +bajo (0.01) aparecerán muchos más item frequentes y si lo pones 
+# +alto (0.05) le pedirías que en la mitad de transacciones este ese item buscado.
+# Suport indicará la probabilidad de la que se ha vendido cada item.
+frq_item = apriori(basket,min_support= 0.03, use_colnames= True)
+frq_item.head(10)
+
+#Generamos reglas de asociación en los datos
+rules = association_rules(frq_item, metric= "lift", min_threshold= 0.5)
+rules = rules.sort_values(['confidence', 'lift'], ascending=[False, False])
+print(rules)
+
+
